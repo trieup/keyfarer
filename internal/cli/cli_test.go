@@ -187,6 +187,54 @@ func TestFreshCloneRestore(t *testing.T) {
 	}
 }
 
+func TestRunMaterializesFileSecretEphemerally(t *testing.T) {
+	dir := newRepo(t)
+	if _, err := runCLI(t, "init"); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "sa.json"), []byte("CREDENTIAL-VALUE-12345"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if out, err := runCLI(t, "add", "sa.json"); err != nil {
+		t.Fatalf("add: %v\n%s", err, out)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "sa.json")); err == nil {
+		t.Fatal("plaintext present after add")
+	}
+
+	// During the run the file exists; the marker proves the child could read it.
+	if out, err := runCLI(t, "run", "--", "sh", "-c", `test -f sa.json && echo present > marker.txt`); err != nil {
+		t.Fatalf("run: %v\n%s", err, out)
+	}
+	marker, err := os.ReadFile(filepath.Join(dir, "marker.txt"))
+	if err != nil || !strings.Contains(string(marker), "present") {
+		t.Fatalf("secret file was not materialized for the command: %q err=%v", marker, err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "sa.json")); err == nil {
+		t.Error("ephemeral secret file not cleaned up after run")
+	}
+}
+
+func TestRunNoFilesSkipsMaterialization(t *testing.T) {
+	dir := newRepo(t)
+	if _, err := runCLI(t, "init"); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "sa.json"), []byte("CRED-VALUE-98765"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if out, err := runCLI(t, "add", "sa.json"); err != nil {
+		t.Fatalf("add: %v\n%s", err, out)
+	}
+	if out, err := runCLI(t, "run", "--no-files", "--", "sh", "-c", `test -f sa.json || echo missing > marker.txt`); err != nil {
+		t.Fatalf("run: %v\n%s", err, out)
+	}
+	marker, err := os.ReadFile(filepath.Join(dir, "marker.txt"))
+	if err != nil || !strings.Contains(string(marker), "missing") {
+		t.Fatalf("--no-files should not materialize file secrets: %q err=%v", marker, err)
+	}
+}
+
 func TestGuardBlocksStagedSecret(t *testing.T) {
 	dir := newRepo(t)
 	if _, err := runCLI(t, "init"); err != nil {

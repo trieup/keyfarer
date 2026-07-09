@@ -56,11 +56,14 @@ func NewServer(dir string) *sdk.Server {
 	sdk.AddTool(s, &sdk.Tool{
 		Name: "run_with_secrets",
 		Description: "PREFERRED way to use secrets: run a command with every managed " +
-			"key/value secret injected as environment variables. The secrets exist only " +
-			"in the child process environment; you receive just the command output. " +
-			"Example: argv [\"npm\",\"start\"] runs with $OPENAI_API_KEY etc. available. " +
-			"Never echo secret env vars in the command you run; as a backstop, any " +
-			"known secret value is redacted to [REDACTED] in the returned output.",
+			"secret available. Key/value secrets are injected as environment variables, " +
+			"and sealed secret files (.env, service account JSON, .p8) are written to " +
+			"their repo paths only for the duration of the command, then removed. So a " +
+			"command that reads ./.env or GOOGLE_APPLICATION_CREDENTIALS=./sa.json just " +
+			"works, and no plaintext lingers on disk. You receive only the command " +
+			"output. Example: argv [\"npm\",\"start\"] runs with $OPENAI_API_KEY etc. " +
+			"available. Never echo secret values or cat secret files; as a backstop, any " +
+			"known secret value or file content is redacted to [REDACTED] in the output.",
 	}, func(ctx context.Context, req *sdk.CallToolRequest, in runIn) (*sdk.CallToolResult, runOut, error) {
 		if len(in.Argv) == 0 {
 			return nil, runOut{}, fmt.Errorf("argv must not be empty")
@@ -78,10 +81,13 @@ func NewServer(dir string) *sdk.Server {
 
 	sdk.AddTool(s, &sdk.Tool{
 		Name: "materialize",
-		Description: "Decrypt ONE managed secret file (for example an Apple .p8 signing " +
-			"key) to its recorded path inside the repository, for tools that need a real " +
-			"file. Returns only the absolute path, never the content. Do NOT read the " +
-			"materialized file yourself; pass the path to the tool that needs it.",
+		Description: "Decrypt ONE managed secret file to its recorded path inside the " +
+			"repository and leave it there. Prefer run_with_secrets, which materializes " +
+			"file secrets automatically just for the duration of a command; use " +
+			"materialize only for a long-lived need outside a single command (for " +
+			"example a tool you keep running yourself). Returns only the absolute path, " +
+			"never the content. Do NOT read the materialized file yourself; pass the " +
+			"path to the tool that needs it.",
 	}, func(ctx context.Context, req *sdk.CallToolRequest, in materializeIn) (*sdk.CallToolResult, materializeOut, error) {
 		p, err := project(dir)
 		if err != nil {

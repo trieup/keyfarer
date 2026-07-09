@@ -20,6 +20,7 @@ type State struct {
 	Files        []FileState        `json:"files"`
 	Env          []EnvState         `json:"env"`
 	Materialized []MaterializedFile `json:"materialized,omitempty"`
+	Ephemeral    []EphemeralFile    `json:"ephemeral,omitempty"`
 	SealedAt     time.Time          `json:"sealed_at"`
 }
 
@@ -35,6 +36,17 @@ type EnvState struct {
 
 type MaterializedFile struct {
 	Path string    `json:"path"`
+	At   time.Time `json:"at"`
+}
+
+// EphemeralFile records a secret file materialized for the lifetime of one
+// `keyfarer run`, owned by the process PID that created it. The owner deletes it
+// when the child exits; if the owner dies first, a later run sweeps it (see
+// Project.sweepEphemeral). Keeping this separate from Materialized preserves the
+// meaning of Materialized for status and list_secrets.
+type EphemeralFile struct {
+	Path string    `json:"path"`
+	PID  int       `json:"pid"`
 	At   time.Time `json:"at"`
 }
 
@@ -108,4 +120,38 @@ func (s *State) UnmarkMaterialized(path string) {
 			return
 		}
 	}
+}
+
+// MarkEphemeral records that pid materialized path for the duration of a run.
+func (s *State) MarkEphemeral(path string, pid int) {
+	for i := range s.Ephemeral {
+		if s.Ephemeral[i].Path == path && s.Ephemeral[i].PID == pid {
+			s.Ephemeral[i].At = time.Now().UTC()
+			return
+		}
+	}
+	s.Ephemeral = append(s.Ephemeral, EphemeralFile{Path: path, PID: pid, At: time.Now().UTC()})
+}
+
+// UnmarkEphemeral drops the record for (path, pid).
+func (s *State) UnmarkEphemeral(path string, pid int) {
+	out := s.Ephemeral[:0]
+	for _, e := range s.Ephemeral {
+		if e.Path == path && e.PID == pid {
+			continue
+		}
+		out = append(out, e)
+	}
+	s.Ephemeral = out
+}
+
+// OtherLiveOwner reports whether a live process other than pid still claims path.
+// Cleanup uses this so concurrent runs do not delete each other's files.
+func (s *State) OtherLiveOwner(path string, pid int) bool {
+	for _, e := range s.Ephemeral {
+		if e.Path == path && e.PID != pid && processAlive(e.PID) {
+			return true
+		}
+	}
+	return false
 }

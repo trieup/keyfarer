@@ -172,6 +172,34 @@ func TestRunWithSecretsRedactsOutput(t *testing.T) {
 	}
 }
 
+func TestRunWithSecretsMaterializesFileAndRedacts(t *testing.T) {
+	dir := newVaultRepo(t)
+	s := connect(t, dir)
+	res := call(t, s, "run_with_secrets", map[string]any{
+		"argv": []string{"cat", ".keyfarer/secrets/sign.p8"},
+	})
+	if res.IsError {
+		t.Fatalf("run_with_secrets errored: %+v", res.Content[0])
+	}
+	var out struct {
+		Output   string `json:"output"`
+		ExitCode int    `json:"exit_code"`
+	}
+	structured(t, res, &out)
+	if out.ExitCode != 0 {
+		t.Fatalf("cat failed; file not materialized for the command: %+v", out)
+	}
+	if strings.Contains(out.Output, "P8 KEY BODY") {
+		t.Fatalf("file content leaked into output: %q", out.Output)
+	}
+	if !strings.Contains(out.Output, "[REDACTED]") {
+		t.Fatalf("file content was not redacted: %q", out.Output)
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".keyfarer", "secrets", "sign.p8")); err == nil {
+		t.Error("ephemeral file not cleaned up after run_with_secrets")
+	}
+}
+
 func TestMaterializeReturnsPathOnly(t *testing.T) {
 	dir := newVaultRepo(t)
 	s := connect(t, dir)

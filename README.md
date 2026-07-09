@@ -163,7 +163,7 @@ If you see the command list, you are ready. Next step: `keyfarer init` inside yo
 | `keyfarer seal` | Re encrypt after editing plaintext sources |
 | `keyfarer restore [--files]` | Restore on a new machine (hooks, state, optionally files) |
 | `keyfarer status` | Drift report: what changed, what is unsealed |
-| `keyfarer run -- <cmd>` | Run anything with secrets injected as env vars |
+| `keyfarer run -- <cmd>` | Run anything with secrets injected: env vars, plus file secrets materialized just for the command |
 | `keyfarer key show` | Print the cached vault key (for another machine) |
 | `keyfarer key forget` | Remove the cached vault key from local storage |
 | `keyfarer guard [--staged]` | Verify nothing can leak into git (the hook entry point) |
@@ -172,9 +172,15 @@ If you see the command list, you are ready. Next step: `keyfarer init` inside yo
 ## How secrets live on disk
 
 Secrets exist only encrypted at rest. Agents and commands access them through
-MCP or `keyfarer run`, and files are materialized on demand (via `keyfarer
-restore --files`, the MCP materialize tool, or `keyfarer add --keep`). Anything
-materialized stays gitignored, guarded, and sealed into the vault for backup.
+MCP or `keyfarer run`. Key/value secrets are injected as environment variables;
+file secrets (`.env`, service account JSON, `.p8`) are written to their repo
+paths only for the lifetime of a `keyfarer run` command and removed when it
+exits, so a tool that reads `./.env` or `GOOGLE_APPLICATION_CREDENTIALS=./sa.json`
+just works without plaintext lingering. Use `keyfarer run --no-files` to inject
+env secrets only. For a long-lived need outside a single command, files can be
+materialized persistently (via `keyfarer restore --files`, the MCP materialize
+tool, or `keyfarer add --keep`); anything materialized stays gitignored, guarded,
+and sealed into the vault for backup.
 
 ## Why not SOPS / fnox / dotenvx / git-crypt?
 

@@ -15,14 +15,18 @@ not, and cannot, protect secrets on a machine that is already compromised.
 | Vault file read by anyone with repo access | age encryption (X25519 identity, ChaCha20-Poly1305 AEAD). Without the vault key the file is ciphertext. |
 | Offline brute force of a committed vault | Random 256 bit X25519 key; brute force is computationally infeasible. The key is never stored in the repo. |
 | Accidentally committing plaintext secrets | Layered guard: gitignore verification, pre-commit hook, staged content scan matching managed secret values and hashes. |
-| AI agent pasting secret values into code, chat, or logs | AI-first access model: MCP tools inject secrets into subprocesses or materialize files on demand; values never enter the model context by default. The guard scan is the detection backstop. |
+| AI agent pasting secret values into code, chat, or logs | AI-first access model: MCP tools inject secrets into subprocesses or materialize files on demand; values never enter the model context by default. `run_with_secrets` also redacts file contents, not just env values, from returned output. The guard scan is the detection backstop. |
+| Secret files left on disk for AI indexers to read | `keyfarer run` and `run_with_secrets` materialize file secrets only for the lifetime of the child process and then remove them (run-scoped materialization), so the plaintext window is the command's runtime rather than indefinite. |
 | Stale or torn vault | Authenticated encryption (tamper detection) plus a manifest with per-file hashes for drift detection. |
 
 ### What Keyfarer does NOT defend against
 
 - **A compromised local machine.** Malware with your user privileges can read
   materialized plaintext, the OS credential store entry, the key file at
-  `UserConfigDir/keyfarer/keys.txt`, or process environments.
+  `UserConfigDir/keyfarer/keys.txt`, or process environments. Run-scoped
+  materialization shrinks but does not eliminate the on-disk window: while a
+  `keyfarer run` command (for example a long-lived dev server) is running, its
+  file secrets exist as plaintext at their repo paths.
 - **A lost vault key.** There is no recovery. Save the key in a password manager
   when `keyfarer add` prints it the first time.
 - **A leaked vault key in a public repo.** Anyone who ever cloned the repo can
