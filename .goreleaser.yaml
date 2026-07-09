@@ -1,0 +1,52 @@
+version: 2
+
+project_name: keyfarer
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: keyfarer
+    main: ./cmd/keyfarer
+    binary: keyfarer
+    env:
+      - CGO_ENABLED=0
+    goos: [darwin, linux, windows]
+    goarch: [amd64, arm64]
+    ldflags:
+      - -s -w -X github.com/trieup/keyfarer/internal/version.Version={{.Version}}
+
+archives:
+  - formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^chore:"
+
+brews:
+  - name: keyfarer
+    repository:
+      owner: trieup
+      name: homebrew-tap
+    homepage: https://github.com/trieup/keyfarer
+    description: Repo secret vault for solo developers. AI first, encrypted, travels with your git repo.
+    license: MIT
+
+scoops:
+  - name: keyfarer
+    repository:
+      owner: trieup
+      name: scoop-bucket
+    homepage: https://github.com/trieup/keyfarer
+    description: Repo secret vault for solo developers. AI first, encrypted, travels with your git repo.
+    license: MIT

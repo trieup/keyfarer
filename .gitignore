@@ -1,0 +1,13 @@
+# Binaries
+/keyfarer
+/dist/
+/bin/
+
+# Test artifacts
+*.test
+coverage.out
+
+# Editor
+.DS_Store
+.idea/
+*.swp
