@@ -38,6 +38,7 @@ brews:
     repository:
       owner: trieup
       name: homebrew-tap
+      token: "{{ .Env.TAP_GITHUB_TOKEN }}"
     homepage: https://github.com/trieup/keyfarer
     description: Repo secret vault for solo developers. AI first, encrypted, travels with your git repo.
     license: MIT
@@ -47,6 +48,7 @@ scoops:
     repository:
       owner: trieup
       name: scoop-bucket
+      token: "{{ .Env.TAP_GITHUB_TOKEN }}"
     homepage: https://github.com/trieup/keyfarer
     description: Repo secret vault for solo developers. AI first, encrypted, travels with your git repo.
     license: MIT
